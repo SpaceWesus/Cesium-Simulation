@@ -37,7 +37,7 @@
 
       // Fly to ASU Tempe Campus
       viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(-111.92849, 33.418096, 500), // Zoom closer
+        destination: Cesium.Cartesian3.fromDegrees(-111.928990, 33.422017, 500), // Zoom closer
         orientation: {
           heading: Cesium.Math.toRadians(0.0),
           pitch: Cesium.Math.toRadians(-30.0),
@@ -59,43 +59,54 @@
         console.error(`Error loading 3D Tileset: ${error}`);
       }
 
-      // Sample coordinates for ASU Tempe Campus
-      const centerLongitude = -111.92849 - 0.0005; // Shift 50 meters west
-      const centerLatitude = 33.418096;
+      // Create Moving Car Route
+      const carRoute = [
+        { lon: -111.928990, lat: 33.422017 },
+        { lon: -111.926375, lat: 33.421969 },
+        { lon: -111.926318, lat: 33.416837 },
+        { lon: -111.927928, lat: 33.416600 },
+        { lon: -111.929370, lat: 33.416628 },
+        { lon: -111.928864, lat: 33.417374 },
+        { lon: -111.928838, lat: 33.419504 },
+        { lon: -111.928959, lat: 33.420415 },
+        { lon: -111.928990, lat: 33.422017 } // Loop back to start
+      ];
 
-      // Function to create entities on terrain
-      function addEntities(entityList, count, dimensions, color, namePrefix) {
-        const positions = [];
-        for (let i = 0; i < count; i++) {
-          const lon = centerLongitude + (Math.random() * 0.0001 - 0.00005);
-          const lat = centerLatitude + (Math.random() * 0.0001 - 0.00005);
-          positions.push(Cesium.Cartographic.fromDegrees(lon, lat));
-        }
+      // Sample terrain heights for the route
+      const positions = carRoute.map(p => Cesium.Cartographic.fromDegrees(p.lon, p.lat));
+      const updatedPositions = await Cesium.sampleTerrainMostDetailed(terrain, positions);
 
-        // Use sampleTerrainMostDetailed to get terrain heights
-        Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, positions).then((updatedPositions) => {
-          updatedPositions.forEach((pos, index) => {
-            entityList.push(viewer.entities.add({
-              name: `${namePrefix} ${index + 1}`,
-              position: Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, pos.height),
-              box: {
-                dimensions: dimensions,
-                material: color,
-              },
-            }));
-          });
-        });
-      }
+      // Create time-dynamic position for smooth movement
+      const positionProperty = new Cesium.SampledPositionProperty();
+      const startTime = Cesium.JulianDate.now();
+      let time = startTime;
 
-      // Create Pedestrians (Vertical Boxes)
-      const pedestrians = [];
-      addEntities(pedestrians, 10, new Cesium.Cartesian3(5.0, 5.0, 15.0), Cesium.Color.BLUE, 'Pedestrian');
+      updatedPositions.forEach((pos, index) => {
+        const cartesianPos = Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, pos.height + 2);
+        positionProperty.addSample(time, cartesianPos);
+        time = Cesium.JulianDate.addSeconds(time, 5, new Cesium.JulianDate());
+      });
 
-      // Create Vehicles (Rectangular Boxes)
-      const vehicles = [];
-      addEntities(vehicles, 5, new Cesium.Cartesian3(10.0, 5.0, 5.0), Cesium.Color.RED, 'Vehicle');
+      // Loop the car back to the start
+      const loopTime = Cesium.JulianDate.addSeconds(startTime, 5 * carRoute.length, new Cesium.JulianDate());
+      viewer.clock.startTime = startTime;
+      viewer.clock.stopTime = loopTime;
+      viewer.clock.currentTime = startTime;
+      viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+      viewer.clock.multiplier = 1;
 
-      console.log('Entities added:', { pedestrians, vehicles });
+      // Create Car Entity
+      const car = viewer.entities.add({
+        name: 'Moving Car',
+        position: positionProperty,
+        box: {
+          dimensions: new Cesium.Cartesian3(10.0, 5.0, 5.0),
+          material: Cesium.Color.RED,
+        },
+        orientation: new Cesium.VelocityOrientationProperty(positionProperty),
+      });
+
+      console.log('Simulation running...');
     });
   </script>
 </body>
