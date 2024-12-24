@@ -30,7 +30,7 @@
     let viewer;
 
     // Initialize Cesium Viewer with terrain
-    Cesium.createWorldTerrainAsync().then(function(terrain) {
+    Cesium.createWorldTerrainAsync().then(async function(terrain) {
       viewer = new Cesium.Viewer('cesiumContainer', {
         terrainProvider: terrain, // Use the loaded terrain provider
       });
@@ -45,8 +45,22 @@
         },
       });
 
+      // Enable Google Photorealistic 3D Tileset
+      let worldTileset;
+      try {
+        worldTileset = await Cesium.createGooglePhotorealistic3DTileset();
+        viewer.scene.primitives.add(worldTileset);
+
+        // Initialize clipping polygon collection
+        worldTileset.clippingPolygons = new Cesium.ClippingPolygonCollection({
+          polygons: []
+        });
+      } catch (error) {
+        console.error(`Error loading 3D Tileset: ${error}`);
+      }
+
       // Sample coordinates for ASU Tempe Campus
-      const centerLongitude = -111.92849;
+      const centerLongitude = -111.92849 - 0.0005; // Shift 50 meters west
       const centerLatitude = 33.418096;
 
       // Function to create entities on terrain
